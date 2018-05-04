@@ -1,6 +1,6 @@
 ---
 
-- name: Configure Fabric
+- name: Configure Common L3Out for WAN Connectivity
   hosts: apic
   connection: local
   gather_facts: False
@@ -165,4 +165,43 @@
         interface_selector: "{{ l3_ext_connection_name }}"
         leaf_profile: "{{ l3_ext_connection_switch_profile_name }}"
         state: "present"
+
+    - name: Add a VRF for l3out in the common tenant
+      aci_vrf:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        vrf: "{{ l3_ext_connection_name }}-vrf"
+        tenant: common
+        descr: VRF for common L3Out
+        policy_control_preference: enforced 
+        policy_control_direction: ingress
+        state: present
+
+    - name: Add a Filter matching all IP traffic
+      aci_filter:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        filter: all-ip
+        description: "Match all IP traffic"
+        tenant: common
+        state: present
+
+    - name: Add a Filter Entry matching all IP traffic
+      aci_filter_entry:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        filter: all-ip
+        entry: all-ip
+        description: "Match all IP traffic"
+        ether_type: ip
+        stateful: False
+        tenant: common
+        state: present
  
+         
