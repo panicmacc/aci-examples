@@ -1,0 +1,278 @@
+Gather Info
+===========
+
+* Mgmt network info, including:
+  * Statically allocated addressing for each APIC mgmt0 interface
+  * Statically allocated addressing for each APIC CIMC interface 
+  * A dynamic address pool with enough addresses for each spine/leaf mgmt0 interface, plus
+    room for expansion.
+  * Also allow room on the mgmt network for any L4-L7 devices you may want ACI to communicate with.
+* NTP server info
+* DNS server info
+* SNMP trap destination(s) 
+* AAA server info (TACACS+, RADIUS, etc.)
+* Syslog server info
+* Email relay host info (optional, for Cisco call-home functionality)
+* Cisco ID w/ active contract (optional, for Cisco call-home functionality)
+* Local administrator password
+* Fabric domain name. Arbitrary. e.g.: "ACI_AZ_1"
+* Fabric ID. Integer.
+  * For multi-site, seems like this is different from "site ID" which must be globally unique. Seems like
+    a fabric in one site can have the same fabric ID as a fabric in another site, but should validate that.
+* Pod ID. Unique, sequential within the fabric, starting with 1.
+* Name (arbitrary, e.g. "apic1") and ID number (1-19) assignments for each APIC
+* Name (arbitrary) and ID number (101-199) assignments for each Leaf
+* Name (arbitrary) and ID number (201-299) assignmnets for each Spine
+* VLAN ID for Infra network (APIC<>Switch and APIC<>vSwitch comms).
+  * Infra VLAN ID should be dedicated to the task, and not already in use in the environment.
+  * Pick a good one. Changing this value later involves exporting the config and rebuilding the fabric.
+  * For multi-site, different fabrics (sites) may use the same infra VLAN ID, assuming the VLANs are isolated
+    to each site.
+* VXLAN Tunnel Endpoint address pool CIDR, e.g. 10.0.0.0/16
+  * Used in Infra VLAN only.
+  * Should not overlap with any other routed subnets in the environment.
+  * Must be at least /23 (/22 in v2.0(1)) and recommended to be /16.
+  * For multi-site, select a different infra CIDR for each fabric/site.
+* Bridge domain multicast address pool (GIPO) CIDR. 
+  * Must be a /15
+  * Valid range: 225.0.0.0/15 - 231.254.0.0/15
+  * e.g. 225.0.0.0/15
+  * For multi-site, select a different multicast CIDR for each site/fabric.
+* ptp addressing for each Border Leaf<>WAN-Dist L3 link
+* BGP ASN 
+
+For Multi-Site
+--------------
+
+* Cisco-provided OVA file
+* 3x vSphere VMs (from OVA)
+  * Position VMs for fault-tolerance
+  * VMs must be able to reach ACI mgmt interfaces
+  * Note: Can name anything you like in vCenter and DNS, but in the VM host OS must be named
+    "node1", "node2", and "node3", or else setup will fail.
+* For each fabric/site:
+  * A unique integer site ID, e.g. 2, 7
+  * dtep-mcast /32 IPN-routed unicast IP address assignment
+  * OSPF area ID and type (regular, nssa, etc.) for Spine<>IPN adjacency
+  * Optional: BGP community name each site should tag to its IPN advertisements. Else can use unknown:unknown:0:0
+* For each pod:
+  * dtep-ucast /32 IPN-routed unicast IP address assignment
+  * dtep-mpod /32 IPN-routed unicast IP address assignment
+* For each IPN-peered spine:
+  * A physical port assigned for each spine<>ipn link
+  * MTU value for spine's ipn link(s)
+  * ptp addressing for each of the spine's spine<>ipn link(s)
+  * cptep (control-plane tep) /32 IPN-routed unicast address assignment
+ 
+
+Initial Setup
+=============
+
+
+Enable MP-BGP Route Reflectors
+------------------------------
+
+Navigate to System->System Settings->BGP Route Reflector
+
+Configure the BGP ASN, and select which spines you want to act as MP-BGP RRs.
+
+
+Configuring L3 External (e.g. WAN) Connectivity
+===============================================
+
+Create a VLAN Pool
+------------------
+
+If the links to your external network device will be VLAN-encapsulated, create a static VLAN pool,
+  including any VLAN IDs you'll want to use.
+
+Fabric->Access Policies->Pools->VLAN->Create VLAN Pool
+
+* Select Static Allocation
+* Add the VLAN IDs
+
+Create an External Domain
+-------------------------
+
+Fabric->Access Policies->Physical and External Domains->External Routed Domains->Create Layer 3 Domain
+
+* Select VLAN Pool created above (not applicable if using routed interfaces)
+
+Create an AAEP
+--------------
+
+Fabric->Access Policies->Global Policies->Attachable Access Entity Profiles->Create AAEP
+ 
+* Select the External Domain you created. Click Next.
+* Don't select any Interface Policy Groups, yet (we haven't created one, yet). Click Finish.
+
+Create a Leaf Interface Policy Group(s)
+------------------------------------
+
+Fabric->Access Policies->Interface Policies->Policy Groups->Leaf Policy Groups
+
+Right-click and select one of:
+
+* Create Leaf Access Port Policy Group
+* Create PC Interface Policy Group
+* Create VPC Interface Policy Group
+
+Depending on the type of link between your border leaf and your external network device.
+
+Note: For PC and VPC types, you need to create a separate Interface Policy Groups for each PC/VPC.
+
+* Select the AAEP you created in the earlier step.
+* Select other Interface Policies as appropriate.
+  * If this is a port-channel, be sure to select an appropriate Port channel policy
+  * Create new policies, as needed
+  * Best practice: Create policies with descriptive names, instead of modifying the "default" policies
+  * Caution: Don't modify the LLDP "default" policy, as it's used internally by the fabric.
+
+Create a Leaf Interface Profile(s)
+-------------------------------
+
+Fabric->Access Policies->Interface Policies->Profiles->Leaf Profiles->Create Leaf Interface Profile
+
+* Add Interface Selector entries for each Interface you want to apply your Interface Policy Group to
+  * Best practice: name your interface selectors after the interface it contains, e.g. "1_59" for int 1/59
+* Select the Interface Policy Group
+  * Again, be sure you're using separate Interface Policy Groups for each PC/VPC. Since each interface selected 
+    specifies an Interface Policy Group, that means that each Interface Profile is also specific to a PC/VPC.
+
+Create/Update Leaf Switch Profile(s)
+------------------------------------
+
+Fabric->Access Policies->Switch Policies->Profiles->Leaf Profiles
+
+Select an existing Leaf Profile, or create a new one if needed.
+
+Best Practice: Name your Leaf Profiles after the leaf/leaves they represent. Examples:
+
+* "leaf1" for a profile bound to Interface Profiles that have ports only on leaf 1
+* "leaf2" for a profile bound to Interface Profiles that have ports only on leaf 2
+* "leaf1_leaf2" fo ra profile bound to VPC Interface Profiles that have ports on both leaf 1 and 2
+
+Once your Leaf Switch Profile(s) are created, add bindings for each of the Interface Profiles you created in
+  the earlier step.
+
+Create Tenant
+-------------
+
+Tenants->Add Tenant
+
+Create VRF
+----------
+
+{Tenant}->Networking->VRFs->Create VRF
+
+* Deselect "create a bridge domain"
+
+Create Global Contract for External Network
+-------------------------------------------
+
+_Common Tenant_->Security Policies->Contracts->Create Contract
+
+* Set Scope to Global
+* Add Subjects/Filters as appropriate, for e.g. Web_Access
+
+Create an External Routed Network (L3Out)
+-----------------------------------------
+
+{Tenant}->Networking->External Routed Networks->Create Routed Outside
+
+* Select VRF
+* Select External Routed Domain
+* Select OSPF and BGP
+* Set the OSPF params (Area ID, Area Type, etc.) as needed
+* Select the VRF you created
+* Select the External Routed Domain you created
+
+Under Nodes and Interface Profiles, click plus to add an entry.
+
+* Add an entry to the Nodes table for each Border Leaf that will form an adjacency as part of this L3Out.
+* If you were using Static routing for loopback reachability instead of OSPF, you could add static routes, here.
+
+Under the BGP Peer Connectivity Profiles table, click plus to add an entry.
+
+* Add an entry for each remote loopback that you want to form a BGP neighborship with.
+* The loopbacks must be reachable by either Static routes (added to each Node profile) or OSPF
+* Set BGP neighbor options (send-community, BFD-enable, etc.) as appropriate
+
+Under the OSPF Interface Profiles table, add an entry for each Interface with which you'll want to
+  form an OSPF adjacency.
+
+* Set OSPF and BFD parameters as appropriate.
+* Select VPC tab
+* Choose appropriate VPC Interface Profile
+* Set VLAN ID for encap (must be in the VLAN pool created earlier)
+* Provide each side (both A and B) with an IP address (within a common subnet) they can each
+  use to establish an OSPF adjacency with the neighbor. Each leaf will establish and adjacency
+  with the neighbor, and with one-another.
+
+Continue to Create External Network step. Add an entry to the External EPG Networks table for each
+  External EPG you wish to create. For example, we'll create one EPG representing all networks reachable
+  via this neighbor.
+
+* Add a subnet entry to the Subnets table
+* Subnet: 0.0.0.0/0
+* Check boxes:
+  * External Subnets for the External EPG
+  * Shared Route Control Subnet
+  * Shared Security Import Subnet
+  * Aggregate Shared Routes
+
+Add the contract you created earlier, as both a provided and consumed contract.
+
+Save and finish creating routed outside.
+
+https://supportforums.cisco.com/t5/application-centric/shared-l3out-in-common/td-p/2974201
+
+Create a Bridge Domain
+----------------------
+
+{Tenant}->Networking->Bridge Domains->Create Bridge Domain
+
+* Select the VRF you created in this customer tenant
+* Click Next to proceed to L3 Configs
+* Add subnets:
+  * Provide gateway address
+  * Check the "treat as virtual IP" box if you want to use pervasive gw
+  * Check "Make this IP Primary" for the primary subnet
+  * Set scope to Public
+  * Check the "Shared between VRFs" box
+* Add the L3 Out you created in the common tenant, to the Associated L3Outs table
+* Finish creating BD
+
+(Fabric) Create a Physical Domain
+---------------------------------
+
+* Create a Static VLAN Pool
+* Create a Physical Domain, binding it to the VLAN Pool. Don't specify AAEP, yet.
+* Create an AAEP. Specify the domain you created.
+* Create (or open an existing) Access Port, PC, or VPC Interface Policy Group
+  * Select Link aggregation type (if applicable)
+  * Select your AAEP
+  * Choose interface policies as appropriate, including Port Channel settings if applicable
+* Create an Interface Profile
+  * Add interface selector(s) binding to your Interface Policy Groups
+* Create or update a Switch Profile, adding a binding for your Interface Profile
+
+(Tenant) Create an Application Profile
+--------------------------------------
+
+{Tenant}->Application Profiles->Create Application Profile
+
+* Give it a name and finish, to acreate the AP.
+* Under the new AP, Create an Application EPG
+* Under the new EPG, Add a binding to the Physical Domain you created
+* Under the new EPG, Under Static Ports, add a binding for the Access Port, PC, or VPC you defined
+* Under Contracts, add any Consumed and Provided contracts, including consuming the global "All External"
+  Contact you defined under the common tenant.
+   
+
+Create an Application Profile
+-----------------------------
+
+{Tenant}->Application Profiles->Create App Profile
+
+

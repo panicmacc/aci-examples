@@ -1,0 +1,28 @@
+{
+  "infraHPortS": {
+    "attributes": {
+      "name": "eth{{ item.module }}-{{ item.interface }}",
+    },
+    "children": [
+      {
+        "infraPortBlk": {
+          "attributes": {
+            "name": "portblk-eth{{ item.module }}-{{ item.interface }}",
+            "fromCard": "{{ item.module }}",
+            "fromPort": "{{ item.interface }}",
+            "toCard": "{{ item.module }}",
+            "toPort": "{{ item.interface }}"
+          }
+        } 
+      },
+      {
+        "infraRsAccBaseGrp": {
+          "attributes": {
+            "tDn": "uni/infra/funcprof/accbundle-{{ l3_ext_connection_name }}"
+          }
+        }  
+      }  
+    ]  
+  }
+}
+

@@ -1,0 +1,1 @@
+{"totalCount":"1","imdata":[{"fvnsVlanInstP":{"attributes":{"allocMode":"static","descr":"","dn":"uni/infra/vlanns-[SAM_Tenant1_General_Pool]-static","name":"SAM_Tenant1_General_Pool","nameAlias":"","ownerKey":"","ownerTag":""},"children":[{"fvnsEncapBlk":{"attributes":{"allocMode":"inherit","descr":"","from":"vlan-1000","name":"","nameAlias":"","to":"vlan-1999"}}}]}}]}

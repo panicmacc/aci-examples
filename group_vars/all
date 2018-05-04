@@ -1,0 +1,15 @@
+---
+
+username: admin
+
+ansible_python_interpreter: "/usr/bin/env python"
+
+prod_tenant: SAM_Tenant
+l3_ext_connection_name: SAM_External
+l3_ext_connection_interfaces:
+  - module: "1"
+    interface: "17"
+  - module: "1"
+    interface: "18"
+l3_ext_connection_switch_profile_name: "leaf1-2"
+

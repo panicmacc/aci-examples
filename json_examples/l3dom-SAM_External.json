@@ -1,0 +1,1 @@
+{"totalCount":"1","imdata":[{"l3extDomP":{"attributes":{"dn":"uni/l3dom-SAM_External","name":"SAM_External","nameAlias":"","ownerKey":"","ownerTag":""},"children":[{"infraRsVlanNs":{"attributes":{"tDn":"uni/infra/vlanns-[SAM_External_Pool]-static"}}}]}}]}
