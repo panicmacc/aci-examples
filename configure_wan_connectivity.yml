@@ -203,5 +203,56 @@
         stateful: False
         tenant: common
         state: present
+
+    - name: Add a global Contract for external access
+      aci_contract:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        tenant: common
+        contract: external_access
+        description: Access to off-fabric destinations
+        scope: global
+        state: present 
+
+    - name: Add a Subject to external access Contract
+      aci_contract_subject:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        tenant: common
+        contract: external_access
+        subject: default 
+        description: All-IP External Access
+        reverse_filter: no
+        priority: level1
+        dscp: unspecified
+        state: present 
+
+    - name: Bind All-IP Filter to Contract Subject for external access
+      aci_contract_subject_to_filter:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        tenant: common
+        contract: external_access
+        subject: default
+        filter: all-ip
+        log: none
+        state: present
  
-         
+    - name: Add Common L3Out configuration
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        path: /api/node/mo/uni/tn-common/out-{{ item.name }}.json
+        method: post
+        content: "{{ lookup('template', 'wan_l3out.json.j2') }}"
+      loop: "{{ wan_l3outs }}"
+      delegate_to: localhost 
+

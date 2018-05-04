@@ -12,4 +12,35 @@ l3_ext_connection_interfaces:
   - module: "1"
     interface: "18"
 l3_ext_connection_switch_profile_name: "leaf1-2"
+wan_l3outs:
+  - name: SAM_External_Blue
+    vlan_id: 100
+    ospf_area: 20
+    ospf_area_cost: 100
+    side_a:
+      node_id: 101
+      router_id: 1.1.1.1
+      ptp_addr_cidr: 10.0.2.1/29
+    side_b: 
+      node_id: 102
+      router_id: 2.2.2.2
+      ptp_addr_cidr: 10.0.2.2/29
+    bgp_peer:
+      address: 10.18.0.1
+      
+
+  - name: SAM_External_Green
+    vlan_id: 200
+    ospf_area: 21
+    ospf_area_cost: 100
+    side_a:
+      node_id: 101
+      router_id: 1.1.1.1
+      ptp_addr_cidr: 10.1.2.1/29
+    side_b:
+      node_id: 102
+      router_id: 2.2.2.2
+      ptp_addr_cidr: 10.1.2.2/29
+    bgp_peer:
+      address: 10.19.0.1
 
