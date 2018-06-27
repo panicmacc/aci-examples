@@ -275,4 +275,11 @@ Create an Application Profile
 
 {Tenant}->Application Profiles->Create App Profile
 
+Extend an EPG outside the fabric (L2) via a VPC dot1q trunk
+===========================================================
+
+Configure a VPC Switch Pair Profile
+-----------------------------------
+
+
 

@@ -1,0 +1,259 @@
+---
+ 
+- name: Configure ACI Fabric
+  hosts: apic
+  connection: local
+  gather_facts: False
+
+  vars_prompt:
+    - name: "password"
+      prompt: "APIC Password"
+      private: yes 
+  
+  tasks:
+#    - name: Create VPC Protection Groups
+#      aci_switch_policy_vpc_protection_group:
+#        host: "{{ inventory_hostname }}"
+#        username: "{{ username }}"
+#        password: "{{ password }}"
+#        protection_group: "{{ item.node_a_id }}_{{ item.node_b_id }}"
+#        protection_group_id: "{{ item.domain_id }}"
+#        switch_1_id: "{{ item.node_a_id }}"
+#        switch_2_id: "{{ item.node_b_id }}"
+#        vpc_domain_policy: default
+#        validate_certs: False
+#        state: present
+#      loop: "{{ vpc_domains }}"
+
+    - name: Create a vlan_scope_local L2 policy
+      aci_interface_policy_l2:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        l2_policy: vlan_scope_local
+        qinq: disabled
+        vepa: no 
+        vlan_scope: portlocal
+        validate_certs: False
+        state: present
+
+    - name: Create a vlan_scope_global L2 policy
+      aci_interface_policy_l2:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        l2_policy: vlan_scope_global
+        qinq: disabled 
+        vepa: no 
+        vlan_scope: global
+        validate_certs: False
+        state: present
+      
+    - name: Create a lacp-active port-channel policy
+      aci_interface_policy_port_channel:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        name: lacp_active
+        fast_select: yes
+        graceful_convergence: yes
+        load_defer: no
+        max_links: 16
+        min_links: 1
+        mode: active
+        suspend_individual: yes
+        symmetric_hash: no
+        validate_certs: False
+        state: present 
+
+    - name: Create VLAN Pool for WAN Uplink 
+      aci_vlan_pool:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: "{{ name_prefix }}_wan_pool"
+        pool_allocation_mode: "static" 
+        state: "present"
+        validate_certs: False
+        description: "VLAN Pool managed by Ansible"
+
+    - name: Add a VLAN encap block for each WAN-uplink VLAN
+      aci_vlan_pool_encap_block:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: "{{ name_prefix }}_wan_pool"
+        pool_allocation_mode: "static"
+        block_name: "{{ name_prefix }}_wan_pool-v{{ item.vlan_id }}"
+        block_start: "{{ item.vlan_id }}" 
+        block_end: "{{ item.vlan_id }}" 
+        state: "present"
+      loop: "{{ wan_peers }}"
+ 
+    - name: Create an L3 External Domain for WAN-uplink
+      aci_domain:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: "{{ name_prefix }}_wan_l3dom"
+        domain_type: "l3dom"
+        state: "present"
+
+    - name: Bind the WAN-uplink L3 Ext Domain to its VLAN Pool
+      aci_domain_to_vlan_pool:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: "{{ name_prefix }}_wan_l3dom"
+        domain_type: "l3dom"
+        pool: "{{ name_prefix }}_wan_pool"
+        pool_allocation_mode: "static"
+        state: "present"
+
+    - name: Create an AEP for the WAN-uplink
+      aci_aep:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: "{{ name_prefix }}_wan_aep"
+        description: "AEP managed by Ansible" 
+        state: "present"
+
+    - name: Bind the WAN-uplink AEP to the WAN-uplink l3dom
+      aci_aep_to_domain:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: "{{ name_prefix }}_wan_aep"
+        domain: "{{ name_prefix }}_wan_l3dom"
+        domain_type: "l3dom"
+        state: "present"
+
+    - name: Create an Interface Policy Group for the WAN uplink p2p links
+      aci_interface_policy_leaf_policy_group:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        policy_group: "{{ name_prefix }}_wan_ipg"
+        aep: "{{ name_prefix }}_wan_aep"
+        cdp_policy: "default"
+        egress_data_plane_policing_policy: "default"
+        fibre_channel_interface_policy: "default"
+        ingress_data_plane_policing_policy: "default"
+        l2_interface_policy: "vlan_scope_local"
+        lag_type: "leaf"
+        link_level_policy: "default"
+        lldp_policy: "default"
+        mcp_policy: "default"
+        monitoring_policy: "default"
+        port_security_policy: "default"
+        priority_flow_control_policy: "default"
+        slow_drain_policy: "default"
+        storm_control_interface_policy: "default"
+        stp_interface_policy: "default" 
+        description: "Policy Group managed by Ansible"
+        state: "present"
+
+    - name: Add an Interface Profile for the WAN uplink p2p links
+      aci_interface_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: "{{ name_prefix }}_wan_intprof"
+        description: "Interface Profile managed by Ansible"
+        state: "present"
+
+    - name: Add WAN peer p2p interfaces to interface profile 
+      include_tasks: configure_wan_p2p_interfaces.yml
+      loop: "{{ wan_peers }}"
+      loop_control:
+        loop_var: wan_peer
+
+    - name: Create a Switch (Leaf) Profile
+      aci_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: "{{ item.nodes.side_a.node_id }}_{{ item.nodes.side_b.node_id }}"
+        description: "Border leaves"
+        state: present 
+      loop: "{{ wan_peers }}"
+
+    - name: Add the Interface Profile to the Switch (Leaf) Profile
+      aci_interface_selector_to_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        interface_selector: "{{ name_prefix }}_wan_intprof"
+        leaf_profile: "{{ item.nodes.side_a.node_id }}_{{ item.nodes.side_b.node_id }}"
+        state: "present"
+      loop: "{{ wan_peers }}"
+
+    - name: Add Leaf Selector to the Leaf Profile for Border Leaf A
+      aci_switch_leaf_selector:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: "{{ item.nodes.side_a.node_id }}_{{ item.nodes.side_b.node_id }}"
+        leaf: "leaf_{{ item.nodes.side_a.node_id }}" 
+        leaf_node_blk: "block_{{ item.nodes.side_a.node_id }}"
+        from: "{{ item.nodes.side_a.node_id }}"
+        to: "{{ item.nodes.side_a.node_id }}" 
+      loop: "{{ wan_peers }}"
+
+    - name: Add Leaf Selector to the Leaf Profile for Border Leaf B
+      aci_switch_leaf_selector:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: "{{ item.nodes.side_a.node_id }}_{{ item.nodes.side_b.node_id }}"
+        leaf: "leaf_{{ item.nodes.side_b.node_id }}" 
+        leaf_node_blk: "block_{{ item.nodes.side_b.node_id }}"
+        from: "{{ item.nodes.side_b.node_id }}"
+        to: "{{ item.nodes.side_b.node_id }}" 
+      loop: "{{ wan_peers }}"
+
+# Configure Common Tenant
+
+    - name: Create VRFs in the common tenant
+      aci_vrf:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        vrf: "common_vrf_{{ item.name }}"
+        tenant: common
+        descr: "{{ item.name }} (Shared VRF)"
+        policy_control_preference: enforced 
+        policy_control_direction: ingress
+        state: present
+      loop: "{{ common_vrfs }}"
+
+    - name: Add a common l3out for wan peer 
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        path: /api/node/mo/uni/tn-common/out-{{ name_prefix }}_wan_{{ wan_peer.name }}_l3out.json
+        method: post
+        content: "{{ lookup('template', 'wan_l3out_rt_subif.json.j2') }}"
+      loop: "{{ wan_peers }}"
+      loop_control:
+        loop_var: wan_peer
+      delegate_to: localhost
+
+#    - name: Configure firewall uplinks
+#      include_tasks: configure_firewall_uplinks.yml
+

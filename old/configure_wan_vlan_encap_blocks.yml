@@ -1,0 +1,30 @@
+---
+
+- name: Add VLAN {{ item.vlan_id }} to WAN-uplink VLAN pool
+  aci_vlan_pool_encap_block:
+    host: "{{ inventory_hostname }}"
+    validate_certs: False
+    username: "{{ username }}"
+    password: "{{ password }}"
+    pool: "{{ name_prefix }}_wan_pool"
+    pool_allocation_mode: "static"
+    block_name: "{{ name_prefix }}_wan_pool-v{{ item.vlan_id }}"
+    block_start: "{{ item.vlan_id }}" 
+    block_end: "{{ item.vlan_id }}" 
+    state: "present"
+  loop: "{{ wan_peer.nodes.side_a.interfaces }}"
+
+- name: Add VLAN {{ item.vlan_id }} to WAN-uplink VLAN pool
+  aci_vlan_pool_encap_block:
+    host: "{{ inventory_hostname }}"
+    validate_certs: False
+    username: "{{ username }}"
+    password: "{{ password }}"
+    pool: "{{ name_prefix }}_wan_pool"
+    pool_allocation_mode: "static"
+    block_name: "{{ name_prefix }}_wan_pool-v{{ item.vlan_id }}"
+    block_start: "{{ item.vlan_id }}" 
+    block_end: "{{ item.vlan_id }}" 
+    state: "present"
+  loop: "{{ wan_peer.nodes.side_b.interfaces }}"
+

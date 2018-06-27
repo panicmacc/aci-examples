@@ -1,46 +1,194 @@
 ---
 
 username: admin
-
 ansible_python_interpreter: "/usr/bin/env python"
 
-prod_tenant: SAM_Tenant
-l3_ext_connection_name: SAM_External
-l3_ext_connection_interfaces:
-  - module: "1"
-    interface: "17"
-  - module: "1"
-    interface: "18"
-l3_ext_connection_switch_profile_name: "leaf1-2"
-wan_l3outs:
-  - name: SAM_External_Blue
-    vlan_id: 100
-    ospf_area: 20
-    ospf_area_cost: 100
-    side_a:
-      node_id: 101
-      router_id: 1.1.1.1
-      ptp_addr_cidr: 10.0.2.1/29
-    side_b: 
-      node_id: 102
-      router_id: 2.2.2.2
-      ptp_addr_cidr: 10.0.2.2/29
-    bgp_peer:
-      address: 10.18.0.1
-      
+name_prefix: sam
 
-  - name: SAM_External_Green
+vpc_domains:
+  - domain_id: 101
+    node_a_id: 101
+    node_b_id: 102
+
+tenants:
+  - name: prod
+  - name: qa
+
+common_vrfs:
+  - name: blue
+  - name: green
+
+# Variables to support establishing BGP sessions to one or more neighbors via select border leaf nodes.
+# Access policies will be created that define which module/interface will be used for each connection,
+# on each border leaf. An l3out will be created for each wan_peer that uses the specified vlan_id to
+# establish an OSPF adjacency (area 0) with the peer via a dot1q subif on each ptp interface.
+# Then, a BGP session will be established to the specified bgp_remote_addr, from each border leaf.
+# Addresses from each wan_peer will be learned into the specified VRF in the common tenant.
+
+wan_peers:
+  - name: blue
+    vrf: blue
+    vlan_id: 100
+    bgp_remote_asn: 64512
+    bgp_remote_addr: 10.100.0.1
+    nodes:
+      side_a:
+        node_id: 101
+        router_id: 1.1.1.1
+        interfaces:
+          - module: 1
+            int_num: 31
+            ptp_cidr: 10.100.101.2/30
+            mtu: 9000
+          - module: 1
+            int_num: 32
+            ptp_cidr: 10.100.101.6/30
+            mtu: 9000
+      side_b:
+        node_id: 102
+        router_id: 2.2.2.2
+        interfaces:
+          - module: 1
+            int_num: 31
+            ptp_cidr: 10.100.102.2/30
+            mtu: 9000
+          - module: 1
+            int_num: 32
+            ptp_cidr: 10.100.102.6/30
+            mtu: 9000
+
+  - name: green 
+    vrf: green
     vlan_id: 200
-    ospf_area: 21
-    ospf_area_cost: 100
+    bgp_remote_asn: 64512
+    bgp_remote_addr: 10.200.0.1
+    nodes:
+      side_a:
+        node_id: 101
+        router_id: 1.1.1.1
+        interfaces:
+          - module: 1
+            int_num: 31
+            ptp_cidr: 10.200.101.2/30
+            mtu: 9000
+          - module: 1
+            int_num: 32
+            ptp_cidr: 10.200.101.6/30
+            mtu: 9000
+      side_b:
+        node_id: 102
+        router_id: 2.2.2.2
+        interfaces:
+          - module: 1
+            int_num: 31
+            ptp_cidr: 10.200.102.2/30
+            mtu: 9000
+          - module: 1
+            int_num: 32
+            ptp_cidr: 10.200.102.6/30
+            mtu: 9000
+
+
+# Variables supporting a VPC dot1q trunk to a firewall,
+# with a Routed External Domain and accompanying statically-routed l3out,
+# that the firewall's "outside" interface will use to talk to the outside world,
+# and a Physical domain (sharing the same VPC trunk) that will carry VLANs from
+# customer-facing L2-only bridge-domains to the firewall for gatewaying.
+# L2-only bridge-domains to the firewall for gatewaying. This is for support of migrating
+# workloads into ACI that currently live in a legacy DC, on a legacy FW. Non-legacy workloads
+# should probably be configured to leverage service graph.
+ 
+fw_peers:
+
+  - name: fw_outside_blue
+    vrf: blue
+    vlan_id: 100
+  
+    nodes:
+      side_a:
+        node_id: 101
+        rtr_id: 1.1.1.1
+        pri_addr_cidr: 10.100.101.1/29
+        sec_addr_cidr: 10.100.101.3/29
+      side_b:
+        node_id: 102
+        rtr_id: 2.2.2.2
+        pri_addr_cidr: 10.100.101.2/29
+        sec_addr_cidr: 10.100.101.3/29
+
+    l3fw_interfaces:
+      - module: 1
+        int_num: 33
+        mtu: 9000
+      - module: 1
+        int_num: 34
+        mtu: 9000
+    
+    l2fw__interfaces:
+      - module: 1
+        int_num: 35 
+        mtu: 9000
+      - module: 1
+        int_num: 36 
+        mtu: 9000
+
+  - name: fw_outside_green
+    vrf: green 
+    vlan_id: 200
+  
+    nodes:
+      side_a:
+        node_id: 101
+        rtr_id: 1.1.1.1
+        pri_addr_cidr: 10.200.101.1/29
+        sec_addr_cidr: 10.200.101.3/29
+      side_b:
+        node_id: 102
+        rtr_id: 2.2.2.2
+        pri_addr_cidr: 10.200.101.2/29
+        sec_addr_cidr: 10.200.101.3/29
+
+    l3fw_interfaces:
+      - module: 1
+        int_num: 33
+        mtu: 9000
+      - module: 1
+        int_num: 34
+        mtu: 9000
+
+    l2fw_interfaces:
+      - module: 1
+        int_num: 35
+        mtu: 9000
+      - module: 1
+        int_num: 36
+        mtu: 9000
+
+
+
+
+
+# Variables supporting a VPC dot1q trunk to the same firewall as above, but using separate physical interfaces.
+# This VPC will have only a single Physical Domain, and no Routed Domain or l3out. This VPC will tie to the
+# same static VLAN pool as the Physical Domain from the l3_fw_uplink, above. It'll carry all customer VLANs
+# to an isolated L2-transparent VDOM that exists on the firewall. The L2-transparent VDOM will perform bridging
+# of select customer VLANs (e.g. bridging customer "inside" VLAN 405 to "outside" VLAN 1405. This is, again,
+# in support of migrating legacy workloads who currently have security controls applied via an equivalent
+# L2-transparent firewall, in their legacy environment.
+
+l2_fw_uplink:
+
+  nodes:
     side_a:
       node_id: 101
-      router_id: 1.1.1.1
-      ptp_addr_cidr: 10.1.2.1/29
     side_b:
       node_id: 102
-      router_id: 2.2.2.2
-      ptp_addr_cidr: 10.1.2.2/29
-    bgp_peer:
-      address: 10.19.0.1
+
+  interfaces:
+    - module: 1
+      int_num: 35
+      mtu: 9000
+    - module: 1
+      int_num: 36
+      mtu: 9000
 

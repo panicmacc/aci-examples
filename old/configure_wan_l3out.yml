@@ -1,0 +1,37 @@
+---
+
+- name: Add a common l3out for wan peer 
+  aci_rest:
+    host: "{{ inventory_hostname }}"
+    validate_certs: False
+    username: "{{ username }}"
+    password: "{{ password }}"
+    path: /api/node/mo/uni/tn-common/out-{{ name_prefix }}_wan_l3out_{{ wan_peer.name }}.json
+    method: post
+    content: "{{ lookup('template', 'wan_l3out.json.j2') }}"
+  delegate_to: localhost
+
+- name: Add interfaces to l3out Node Profile (side_a)
+  aci_rest:
+    host: "{{ inventory_hostname }}"
+    validate_certs: False
+    username: "{{ username }}"
+    password: "{{ password }}"
+    path: /api/node/mo/uni/tn-common/out-{{ name_prefix }}_wan_l3out_{{ wan_peer.name }}/.json
+    method: post
+    content: "{{ lookup('template', 'wan_l3out_interface.json.j2') }}"
+  loop: "{{ wan_peer.nodes.node_a.interfaces }}"
+  delegate_to: localhost
+    
+- name: Add interfaces to l3out Node Profile (side_b)
+  aci_rest:
+    host: "{{ inventory_hostname }}"
+    validate_certs: False
+    username: "{{ username }}"
+    password: "{{ password }}"
+    path: /api/node/mo/uni/tn-common/out-{{ name_prefix }}_wan_l3out_{{ wan_peer.name }}/.json
+    method: post
+    content: "{{ lookup('template', 'wan_l3out_interface.json.j2') }}"
+  loop: "{{ wan_peer.nodes.node_b.interfaces }}"
+  delegate_to: localhost
+

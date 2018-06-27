@@ -70,7 +70,7 @@
         pool_allocation_mode: "static"
         state: "present"
 
-    - name: Add the SAM_External AEP
+    - name: Add an AEP
       aci_aep:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -80,7 +80,7 @@
         description: "AEP managed by Ansible" 
         state: "present"
 
-    - name: Bind the SAM_External AEP to the SAM_External L3 Domain
+    - name: Bind the AEP to the External L3 Domain
       aci_aep_to_domain:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -91,7 +91,7 @@
         domain_type: "l3dom"
         state: "present"
 
-    - name: Add SAM_External Interface Policy Group
+    - name: Add a VPC Interface Policy Group
       aci_interface_policy_leaf_policy_group:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -118,7 +118,7 @@
         description: "Policy Group managed by Ansible"
         state: "present"
 
-    - name: Add SAM_External Interface Profile
+    - name: Add an Interface Profile
       aci_interface_policy_leaf_profile:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -128,7 +128,7 @@
         description: "Interface Profile managed by Ansible"
         state: "present"
 
-## Seems like fromCard/toCard attributes are not yet available, so using the REST module, for now
+## Seems like fromCard/toCard attributes are not yet available in module, so using the REST module, for now
 #    - name: Add physical interfaces to Interface Profile
 #      aci_access_port_to_interface_policy_leaf_profile:
 #        host: "{{ inventory_hostname }}"
@@ -144,7 +144,7 @@
 #        state: "present"
 #      loop: "{{ l3_ext_connection_interfaces }}"
 
-    - name: Add physical interfaces to Interface Profile
+    - name: Add physical interfaces to the Interface Profile
       aci_rest:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -156,7 +156,17 @@
       loop: "{{ l3_ext_connection_interfaces }}"
       delegate_to: localhost 
 
-    - name: Add Interface Profile to Switch (Leaf) Profile
+    - name: Create a Switch (Leaf) Profile
+      aci_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: "{{ l3_ext_connection_switch_profile_name }}"
+        description: "Border leaves"
+        state: present 
+
+    - name: Add the Interface Profile to the VPC Switch (Leaf) Profile
       aci_interface_selector_to_switch_policy_leaf_profile:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -166,7 +176,7 @@
         leaf_profile: "{{ l3_ext_connection_switch_profile_name }}"
         state: "present"
 
-    - name: Add a VRF for l3out in the common tenant
+    - name: Add a VRF for l3out purposed in the common tenant
       aci_vrf:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -179,7 +189,7 @@
         policy_control_direction: ingress
         state: present
 
-    - name: Add a Filter matching all IP traffic
+    - name: Add a Filter for the global external access Contract 
       aci_filter:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -216,7 +226,7 @@
         scope: global
         state: present 
 
-    - name: Add a Subject to external access Contract
+    - name: Add a Subject to the external access Contract
       aci_contract_subject:
         host: "{{ inventory_hostname }}"
         validate_certs: False
@@ -231,7 +241,7 @@
         dscp: unspecified
         state: present 
 
-    - name: Bind All-IP Filter to Contract Subject for external access
+    - name: Bind the All-IP Filter to Contract Subject for external access
       aci_contract_subject_to_filter:
         host: "{{ inventory_hostname }}"
         validate_certs: False

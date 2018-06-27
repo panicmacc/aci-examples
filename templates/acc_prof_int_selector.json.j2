@@ -1,24 +1,24 @@
 {
   "infraHPortS": {
     "attributes": {
-      "name": "eth{{ item.module }}-{{ item.interface }}",
+     "name": "eth{{ item.module }}-{{ item.int_num }}",
     },
     "children": [
       {
         "infraPortBlk": {
           "attributes": {
-            "name": "portblk-eth{{ item.module }}-{{ item.interface }}",
+            "name": "portblk-eth{{ item.module }}-{{ item.int_num }}",
             "fromCard": "{{ item.module }}",
-            "fromPort": "{{ item.interface }}",
+            "fromPort": "{{ item.int_num }}",
             "toCard": "{{ item.module }}",
-            "toPort": "{{ item.interface }}"
+            "toPort": "{{ item.int_num }}"
           }
         } 
       },
       {
         "infraRsAccBaseGrp": {
           "attributes": {
-            "tDn": "uni/infra/funcprof/accbundle-{{ l3_ext_connection_name }}"
+            "tDn": "uni/infra/funcprof/accbundle-{{ name_prefix }}_wan_ipg"
           }
         }  
       }  

@@ -1,0 +1,281 @@
+---
+
+- name: Configure Common L3Out for WAN Connectivity
+  hosts: apic
+  connection: local
+  gather_facts: False
+
+  vars_prompt:
+    - name: "password"
+      prompt: "APIC Password"
+      private: yes 
+
+  tasks:
+    - name: Configure VPC Protection Groups
+      aci_switch_policy_vpc_protection_group:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        protection_group: "{{ item.name }}"
+        protection_group_id: "{{ item.id }}"
+        switch_1_id: "{{ item.node_a_id }}"
+        switch_2_id: "{{ item.node_b_id }}"
+        vpc_domain_policy: default
+        state: present
+      loop: {{ vpc_domains }}
+
+    - name: Ensure VLAN Pool for External is configured
+      aci_vlan_pool:
+        host: "{{ inventory_hostname }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: "{{ l3_ext_connection_name }}"
+        pool_allocation_mode: "static" 
+        state: "present"
+        validate_certs: False
+        description: "VLAN Pool managed by Ansible"
+
+    - name: Add a VLAN encap block for VLAN100 (External Blue VRF)
+      aci_vlan_pool_encap_block:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: "{{ l3_ext_connection_name }}"
+        pool_allocation_mode: "static"
+        block_name: "{{ l3_ext_connection_name }}-v100"
+        block_start: 100
+        block_end: 100 
+        state: "present"
+
+    - name: Add a VLAN encap block for VLAN200 (External Green VRF)
+      aci_vlan_pool_encap_block:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        pool: "{{ l3_ext_connection_name }}"
+        pool_allocation_mode: "static"
+        block_name: "{{ l3_ext_connection_name }}-v200"
+        block_start: 200
+        block_end: 200 
+        state: "present"
+
+    - name: Add an L3 External Domain
+      aci_domain:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: "{{ l3_ext_connection_name }}"
+        domain_type: "l3dom"
+        state: "present"
+
+    - name: Bind L3 Ext Domain to VLAN Pool
+      aci_domain_to_vlan_pool:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        domain: "{{ l3_ext_connection_name }}"
+        domain_type: "l3dom"
+        pool: "{{ l3_ext_connection_name }}"
+        pool_allocation_mode: "static"
+        state: "present"
+
+    - name: Add an AEP
+      aci_aep:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: "{{ l3_ext_connection_name }}"
+        description: "AEP managed by Ansible" 
+        state: "present"
+
+    - name: Bind the AEP to the External L3 Domain
+      aci_aep_to_domain:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        aep: "{{ l3_ext_connection_name }}"
+        domain: "{{ l3_ext_connection_name }}"
+        domain_type: "l3dom"
+        state: "present"
+
+    - name: Add a VPC Interface Policy Group
+      aci_interface_policy_leaf_policy_group:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        policy_group: "{{ l3_ext_connection_name }}"
+        aep: "{{ l3_ext_connection_name }}"
+        cdp_policy: "default"
+        egress_data_plane_policing_policy: "default"
+        fibre_channel_interface_policy: "default"
+        ingress_data_plane_policing_policy: "default"
+        l2_interface_policy: "default"
+        lag_type: "node"
+        link_level_policy: "default"
+        lldp_policy: "default"
+        mcp_policy: "default"
+        monitoring_policy: "default"
+        port_channel_policy: "lacp_active"
+        port_security_policy: "default"
+        priority_flow_control_policy: "default"
+        slow_drain_policy: "default"
+        storm_control_interface_policy: "default"
+        stp_interface_policy: "default" 
+        description: "Policy Group managed by Ansible"
+        state: "present"
+
+    - name: Add an Interface Profile
+      aci_interface_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_interface_profile: "{{ l3_ext_connection_name }}"
+        description: "Interface Profile managed by Ansible"
+        state: "present"
+
+## Seems like fromCard/toCard attributes are not yet available in module, so using the REST module, for now
+#    - name: Add physical interfaces to Interface Profile
+#      aci_access_port_to_interface_policy_leaf_profile:
+#        host: "{{ inventory_hostname }}"
+#        validate_certs: False
+#        username: "{{ username }}"
+#        password: "{{ password }}"
+#        access_port_selector: "eth{{ item.module }}-{{ item.interface }}" 
+#        leaf_interface_profile: "{{ l3_ext_connection_name }}"
+#        leaf_port_blk: "eth{{ item.module }}-{{ item.interface }}"
+#        from: "{{ item.module }}/{{ item.interface }}"
+#        to: "{{ item.module }}/{{ item.interface }}"
+#        policy_group: "{{ l3_ext_connection_name }}"
+#        state: "present"
+#      loop: "{{ l3_ext_connection_interfaces }}"
+
+    - name: Add physical interfaces to the Interface Profile
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        path: /api/node/mo/uni/infra/accportprof-{{ l3_ext_connection_name }}/hports-eth{{ item.module }}-{{ item.interface }}-typ-range.json
+        method: post
+        content: "{{ lookup('template', 'acc_prof_int_selector.json.j2') }}"
+      loop: "{{ l3_ext_connection_interfaces }}"
+      delegate_to: localhost 
+
+    - name: Create a Switch (Leaf) Profile
+      aci_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        leaf_profile: "{{ l3_ext_connection_switch_profile_name }}"
+        description: "Border leaves"
+        state: present 
+
+    - name: Add the Interface Profile to the VPC Switch (Leaf) Profile
+      aci_interface_selector_to_switch_policy_leaf_profile:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        interface_selector: "{{ l3_ext_connection_name }}"
+        leaf_profile: "{{ l3_ext_connection_switch_profile_name }}"
+        state: "present"
+
+    - name: Add a VRF for l3out purposes in the common tenant
+      aci_vrf:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        vrf: "{{ l3_ext_connection_name }}-vrf"
+        tenant: common
+        descr: VRF for common L3Out
+        policy_control_preference: enforced 
+        policy_control_direction: ingress
+        state: present
+
+    - name: Add a Filter for the global external access Contract 
+      aci_filter:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        filter: all-ip
+        description: "Match all IP traffic"
+        tenant: common
+        state: present
+
+    - name: Add a Filter Entry matching all IP traffic
+      aci_filter_entry:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        filter: all-ip
+        entry: all-ip
+        description: "Match all IP traffic"
+        ether_type: ip
+        stateful: False
+        tenant: common
+        state: present
+
+    - name: Add a global Contract for external access
+      aci_contract:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        tenant: common
+        contract: external_access
+        description: Access to off-fabric destinations
+        scope: global
+        state: present 
+
+    - name: Add a Subject to the external access Contract
+      aci_contract_subject:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        tenant: common
+        contract: external_access
+        subject: default 
+        description: All-IP External Access
+        reverse_filter: no
+        priority: level1
+        dscp: unspecified
+        state: present 
+
+    - name: Bind the All-IP Filter to Contract Subject for external access
+      aci_contract_subject_to_filter:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        tenant: common
+        contract: external_access
+        subject: default
+        filter: all-ip
+        log: none
+        state: present
+ 
+    - name: Add Common L3Out configuration
+      aci_rest:
+        host: "{{ inventory_hostname }}"
+        validate_certs: False
+        username: "{{ username }}"
+        password: "{{ password }}"
+        path: /api/node/mo/uni/tn-common/out-{{ item.name }}.json
+        method: post
+        content: "{{ lookup('template', 'wan_l3out.json.j2') }}"
+      loop: "{{ wan_l3outs }}"
+      delegate_to: localhost 
+

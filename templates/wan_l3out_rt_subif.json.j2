@@ -1,0 +1,287 @@
+"l3extOut": {
+  "attributes": {
+    "descr": "",
+    "dn": "uni/tn-common/out-{{ name_prefix }}_wan_{{ wan_peer.name }}_l3out",
+    "enforceRtctrl": "export",
+    "name": "{{ name_prefix }}_wan_{{ wan_peer.name }}_l3out",
+    "nameAlias": "",
+    "ownerKey": "",
+    "ownerTag": "",
+    "targetDscp": "unspecified"
+  },
+  "children": [
+    {
+      "ospfExtP": {
+        "attributes": {
+          "areaCost": "1",
+          "areaCtrl": "redistribute,summary",
+          "areaId": "backbone",
+          "areaType": "regular",
+          "descr": "",
+          "nameAlias": ""
+        }
+      }
+    },
+    {
+      "l3extRsL3DomAtt": {
+        "attributes": {
+          "tDn": "uni/l3dom-{{ name_prefix }}_wan_l3dom"
+        }
+      }
+    },
+    {
+      "l3extRsEctx": {
+        "attributes": {
+          "tnFvCtxName": "common_{{ wan_peer.vrf }}"
+        }
+      }
+    },
+    {
+      "l3extLNodeP": {
+        "attributes": {
+          "configIssues": "",
+          "descr": "",
+          "name": "border_leaves",
+          "nameAlias": "",
+          "ownerKey": "",
+          "ownerTag": "",
+          "tag": "yellow-green",
+          "targetDscp": "unspecified"
+        },
+        "children": [
+          {
+            "l3extRsNodeL3OutAtt": {
+              "attributes": {
+                "rtrId": "{{ wan_peer.nodes.side_a.router_id }}",
+                "rtrIdLoopBack": "yes",
+                "tDn": "topology/pod-1/node-{{ wan_peer.nodes.side_a.node_id }}"
+              },
+              "children": [
+                {
+                  "l3extInfraNodeP": {
+                    "attributes": {
+                      "descr": "",
+                      "fabricExtCtrlPeering": "no",
+                      "fabricExtIntersiteCtrlPeering": "no",
+                      "name": "",
+                      "nameAlias": "",
+                      "spineRole": ""
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "l3extRsNodeL3OutAtt": {
+              "attributes": {
+                "rtrId": "{{ wan_peer.nodes.side_b.router_id }}",
+                "rtrIdLoopBack": "yes",
+                "tDn": "topology/pod-1/node-{{ wan_peer.nodes.side_b.node_id }}"
+              },
+              "children": [
+                {
+                  "l3extInfraNodeP": {
+                    "attributes": {
+                      "descr": "",
+                      "fabricExtCtrlPeering": "no",
+                      "fabricExtIntersiteCtrlPeering": "no",
+                      "name": "",
+                      "nameAlias": "",
+                      "spineRole": ""
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "l3extLIfP": {
+              "attributes": {
+                "descr": "",
+                "name": "ospf_int_prof",
+                "nameAlias": "",
+                "ownerKey": "",
+                "ownerTag": "",
+                "tag": "yellow-green"
+              },
+              "children": [
+                {
+                  "ospfIfP": {
+                    "attributes": {
+                      "authKeyId": "1",
+                      "authType": "none",
+                      "descr": "",
+                      "name": "",
+                      "nameAlias": ""
+                    },
+                    "children": [
+                      {
+                        "ospfRsIfPol": {
+                          "attributes": {
+                            "tnOspfIfPolName": ""
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                {% for interface in wan_peer.nodes.side_a.interfaces %}
+                {
+                  "l3extRsPathL3OutAtt": {
+                    "attributes": {
+                      "addr": "{{ interface.ptp_cidr }}",
+                      "descr": "",
+                      "encap": "vlan-{{ wan_peer.vlan_id }}",
+                      "encapScope": "local",
+                      "ifInstT": "sub-interface",
+                      "llAddr": "0.0.0.0",
+                      "mode": "regular",
+                      "mtu": "9000",
+                      "tDn": "topology/pod-1/paths-{{ wan_peer.nodes.side_a.node_id }}/pathep-[eth{{ interface.module }}/{{ interface.int_num }}]",
+                      "targetDscp": "unspecified"
+                    }
+                  }
+                },
+                {% endfor %}
+                {% for interface in wan_peer.nodes.side_b.interfaces %}
+                {
+                  "l3extRsPathL3OutAtt": {
+                    "attributes": {
+                      "addr": "{{ interface.ptp_cidr }}",
+                      "descr": "",
+                      "encap": "vlan-{{ wan_peer.vlan_id }}",
+                      "encapScope": "local",
+                      "ifInstT": "sub-interface",
+                      "llAddr": "0.0.0.0",
+                      "mode": "regular",
+                      "mtu": "9000",
+                      "tDn": "topology/pod-1/paths-{{ wan_peer.nodes.side_b.node_id }}/pathep-[eth{{ interface.module }}/{{ interface.int_num }}]",
+                      "targetDscp": "unspecified"
+                    }
+                  }
+                },
+                {% endfor %}
+                {
+                  "l3extRsNdIfPol": {
+                    "attributes": {
+                      "tnNdIfPolName": ""
+                    }
+                  }
+                },
+                {
+                  "l3extRsIngressQosDppPol": {
+                    "attributes": {
+                      "tnQosDppPolName": ""
+                    }
+                  }
+                },
+                {
+                  "l3extRsEgressQosDppPol": {
+                    "attributes": {
+                      "tnQosDppPolName": ""
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "bgpPeerP": {
+              "attributes": {
+                "addr": "{{ wan_peer.bgp_remote_addr }}",
+                "allowedSelfAsCnt": "3",
+                "ctrl": "send-com,send-ext-com",
+                "descr": "",
+                "name": "",
+                "nameAlias": "",
+                "peerCtrl": "",
+                "privateASctrl": "",
+                "ttl": "1",
+                "weight": "0"
+              },
+              "children": [
+                {
+                  "bgpRsPeerPfxPol": {
+                    "attributes": {
+                      "tnBgpPeerPfxPolName": ""
+                    }
+                  }
+                },
+                {
+                  "bgpAsP": {
+                    "attributes": {
+                      "asn": "{{ wan_peer.bgp_remote_asn }}",
+                      "descr": "",
+                      "name": "",
+                      "nameAlias": ""
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "l3extInstP": {
+        "attributes": {
+          "descr": "",
+          "matchT": "AtleastOne",
+          "name": "externaLblue",
+          "nameAlias": "",
+          "prefGrMemb": "exclude",
+          "prio": "unspecified",
+          "targetDscp": "unspecified"
+        },
+        "children": [
+          {
+            "fvRsProv": {
+              "attributes": {
+                "matchT": "AtleastOne",
+                "prio": "unspecified",
+                "tnVzBrCPName": "default"
+              }
+            }
+          },
+          {
+            "l3extSubnet": {
+              "attributes": {
+                "aggregate": "",
+                "descr": "",
+                "ip": "0.0.0.0/0",
+                "name": "",
+                "nameAlias": "",
+                "scope": "import-security"
+              }
+            }
+          },
+          {
+            "fvRsCustQosPol": {
+              "attributes": {
+                "tnQosCustomPolName": ""
+              }
+            }
+          },
+          {
+            "fvRsCons": {
+              "attributes": {
+                "prio": "unspecified",
+                "tnVzBrCPName": "default"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "bgpExtP": {
+        "attributes": {
+          "descr": "",
+          "nameAlias": ""
+        }
+      }
+    }
+  ]
+}
